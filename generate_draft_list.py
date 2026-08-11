@@ -652,6 +652,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script>
   // Reload the page every 60s with a cache-busting query string so the TV
   // always shows the latest published version, never a stale cached copy.
@@ -670,6 +673,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     --bg: {c_bg};
     --text: {c_text};
     --light: {c_light};
+    --lime: {c_lime};
     --tap-size: {tap_size}vh;
     --name-size: {name_size}vh;
     --sub-size: {sub_size}vh;
@@ -747,7 +751,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     column-gap: 0.5vw;
     align-items: center;
     padding: 0.35vh 0;
-    border-bottom: 1px solid rgba(27,61,56,0.18);
+    border-bottom: 1px solid color-mix(in srgb, var(--lime) 45%, transparent);
     min-width: 0;  /* allow ellipsis to work inside grid */
   }}
   ul.beers li .beer {{
@@ -970,6 +974,7 @@ def render_html(beers: Iterable["Beer"], out_path: Path, bar_name: str,
         c_bg=brand["colors"]["background"],
         c_text=brand["colors"]["text_dark"],
         c_light=brand["colors"]["text_light"],
+        c_lime=brand["colors"].get("accent_lime", brand["colors"]["accent_sage"]),
         title_font_name=title_font_name,
         body_font_name=body_font_name,
         badge_label_font_name=badge_label_font_name,
@@ -1031,6 +1036,9 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
 <title>{bar_name} — On Tap</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script>
   // Refresh every 60s with a cache-buster so the embed stays current
   setTimeout(function() {{
@@ -1046,6 +1054,7 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
     --sage:   {c_sage};
     --text:   {c_text};
     --bg:     {c_bg};
+    --lime:   {c_lime};
   }}
   * {{ box-sizing: border-box; }}
   html, body {{
@@ -1080,7 +1089,7 @@ EMBED_TEMPLATE = """<!DOCTYPE html>
     column-gap: 0.75rem;
     align-items: center;
     padding: 0.55rem 0;
-    border-bottom: 1px solid rgba(80,54,41,0.18);
+    border-bottom: 1px solid color-mix(in srgb, var(--lime) 45%, transparent);
     min-width: 0;
   }}
   .tap {{
@@ -1171,6 +1180,7 @@ def render_embed_html(beers: Iterable["Beer"], out_path: Path, bar_name: str,
         c_sage=brand["colors"]["accent_sage"],
         c_text=brand["colors"]["text_dark"],
         c_bg=brand["colors"]["background"],
+        c_lime=brand["colors"].get("accent_lime", brand["colors"]["accent_sage"]),
         title_font_name=F.get("title_font_name") or "Times-Bold",
         body_font_name=F.get("body_font_name") or "Helvetica",
         body=body,

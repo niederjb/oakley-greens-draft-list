@@ -37,43 +37,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate Deerfield draft list
+      - name: Generate Oakley Greens draft list
         env:
           TOAST_CLIENT_ID: ${{ secrets.TOAST_CLIENT_ID }}
           TOAST_CLIENT_SECRET: ${{ secrets.TOAST_CLIENT_SECRET }}
-          TOAST_RESTAURANT_GUID: ${{ secrets.DEERFIELD_GUID }}
+          TOAST_RESTAURANT_GUID: ${{ secrets.OAKLEY_GREENS_GUID }}
           DRAFT_GROUP_NAME: "Draft Beer"
-          EXPECTED_TAP_COUNT: "24"
-          BAR_NAME: "Fifty West - Deerfield"
+          BAR_NAME: "Oakley Greens"
         run: |
-          mkdir -p site/deerfield
-          python generate_draft_list.py --output-dir site/deerfield
-
-      - name: Generate Wooster Pike draft list
-        env:
-          TOAST_CLIENT_ID: ${{ secrets.TOAST_CLIENT_ID }}
-          TOAST_CLIENT_SECRET: ${{ secrets.TOAST_CLIENT_SECRET }}
-          TOAST_RESTAURANT_GUID: ${{ secrets.WOOSTER_PIKE_GUID }}
-          DRAFT_GROUP_NAME: "Beer"
-          EXPECTED_TAP_COUNT: "16"
-          BAR_NAME: "Fifty West - Wooster Pike"
-        run: |
-          mkdir -p site/wooster-pike
-          python generate_draft_list.py --output-dir site/wooster-pike
-
-      - name: Generate Chillicothe draft list
-        continue-on-error: true
-        env:
-          TOAST_CLIENT_ID: ${{ secrets.TOAST_CLIENT_ID }}
-          TOAST_CLIENT_SECRET: ${{ secrets.TOAST_CLIENT_SECRET }}
-          TOAST_RESTAURANT_GUID: ${{ secrets.CHILLICOTHE_GUID }}
-          DRAFT_MENU_NAME: "Beer"
-          DRAFT_GROUP_NAME: "Draft Beer"
-          EXPECTED_TAP_COUNT: "16"
-          BAR_NAME: "Fifty West - Chillicothe"
-        run: |
-          mkdir -p site/chillicothe
-          python generate_draft_list.py --output-dir site/chillicothe
+          mkdir -p site/oakley-greens
+          python generate_draft_list.py --output-dir site/oakley-greens
 
       - name: Build landing index page
         run: |
@@ -82,7 +55,7 @@ jobs:
           <html lang="en">
           <head>
             <meta charset="utf-8">
-            <title>Fifty West - Draft Lists</title>
+            <title>Oakley Greens - On Tap</title>
             <style>
               body { font-family: -apple-system, BlinkMacSystemFont, sans-serif;
                      max-width: 600px; margin: 4rem auto; padding: 0 1rem;
@@ -94,11 +67,9 @@ jobs:
             </style>
           </head>
           <body>
-            <h1>Fifty West - Draft Lists</h1>
+            <h1>Oakley Greens - On Tap</h1>
             <ul>
-              <li><a href="deerfield/draft_list.html">Deerfield - Live tap list</a></li>
-              <li><a href="wooster-pike/draft_list.html">Wooster Pike - Live tap list</a></li>
-              <li><a href="chillicothe/draft_list.html">Chillicothe - Live tap list</a></li>
+              <li><a href="oakley-greens/draft_list.html">Oakley Greens - Live tap list</a></li>
             </ul>
             <p style="color:#888;font-size:.85em;margin-top:3rem">Pulled live from Toast POS. Refreshes every 15 minutes.</p>
           </body>

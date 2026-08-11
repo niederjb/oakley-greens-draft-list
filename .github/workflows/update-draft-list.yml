@@ -46,7 +46,7 @@ jobs:
           BAR_NAME: "Oakley Greens"
         run: |
           mkdir -p site/oakley-greens
-          python generate_draft_list.py --output-dir site/oakley-greens
+          python generate_draft_list.py --output-dir site/oakley-greens --html-only
 
       - name: Build landing index page
         run: |

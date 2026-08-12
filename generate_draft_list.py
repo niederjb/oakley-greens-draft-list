@@ -45,10 +45,14 @@ DEFAULTS = {
     # the 3×8 grid layout stays consistent.
     "EXPECTED_TAP_COUNT": "",
     # Group names for the two other tabs on the card-grid HTML page.
-    # Both are looked up inside the same parent menu as DRAFT_MENU_NAME
-    # (when that's set).
     "COCKTAILS_GROUP_NAME": "Cocktails",
     "SPECIALS_GROUP_NAME": "Specials",
+    # Parent menu that all three card-grid tabs (Drafts/Cocktails/Specials) are
+    # scoped to. Group names like "Cocktails" aren't unique across the whole
+    # Toast account — without this restriction, extraction pulls in every
+    # same-named group from every other menu too. Override via env if the
+    # actual menu name differs.
+    "CARD_MENU_NAME": "WEB MENU",
 }
 
 
@@ -1421,12 +1425,15 @@ def main() -> int:
     if not args.pdf_only:
         # Card-grid HTML page (Drafts / Cocktails / Specials tabs) — this is
         # the page served on GitHub Pages, styled to match oakleygreens.com.
-        drafts_items = extract_group_items(payload, group_name, menu_name=menu_name)
+        # Scoped to CARD_MENU_NAME so group names like "Cocktails" don't also
+        # pull in same-named groups from other menus in the account.
+        card_menu_name = menu_name or (cfg("CARD_MENU_NAME") or None)
+        drafts_items = extract_group_items(payload, group_name, menu_name=card_menu_name)
         cocktails_items = extract_group_items(
-            payload, cfg("COCKTAILS_GROUP_NAME"), menu_name=menu_name
+            payload, cfg("COCKTAILS_GROUP_NAME"), menu_name=card_menu_name
         )
         specials_items = extract_group_items(
-            payload, cfg("SPECIALS_GROUP_NAME"), menu_name=menu_name
+            payload, cfg("SPECIALS_GROUP_NAME"), menu_name=card_menu_name
         )
         print(
             f"  Card page: {len(drafts_items)} draft(s), "

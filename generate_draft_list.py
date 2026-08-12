@@ -39,11 +39,16 @@ DEFAULTS = {
     # Useful when more than one menu in the restaurant contains a "Draft Beer"
     # group — e.g., Chillicothe has it under both "Beer" and elsewhere.
     "DRAFT_MENU_NAME":  "",
-    "BAR_NAME": "On Tap",
+    "BAR_NAME": "Oakley Greens",
     # If set (e.g., "24"), always render this many tap slots even when some are
     # missing from Toast — empty slots show the tap number with no beer info, so
     # the 3×8 grid layout stays consistent.
     "EXPECTED_TAP_COUNT": "",
+    # Group names for the two other tabs on the card-grid HTML page.
+    # Both are looked up inside the same parent menu as DRAFT_MENU_NAME
+    # (when that's set).
+    "COCKTAILS_GROUP_NAME": "Cocktails",
+    "SPECIALS_GROUP_NAME": "Specials",
 }
 
 
@@ -642,22 +647,172 @@ def render_pdf(beers: Iterable[Beer], out_path: Path, bar_name: str,
     c.save()
 
 
-# ---------- HTML rendering --------------------------------------------------
+# ---------- HTML rendering (card grid, tabbed) ------------------------------
+#
+# This replaces the old TV-style flat-list template (which mirrored the
+# Fifty West Brewing layout/typography) with a mobile-first, tabbed
+# (Drafts / Cocktails / Specials) card grid matching Oakley Greens' own site
+# styling: dark forest green header, cream text, lime accents, Sora typeface.
+# No Fifty West colors, fonts, or layout patterns remain in this template.
 
-HTML_TEMPLATE = """<!DOCTYPE html>
+_ABV_LEADING_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%\s*ABV\.?\s*", re.IGNORECASE)
+_ABV_ANYWHERE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%\s*ABV", re.IGNORECASE)
+
+
+def parse_abv_and_blurb(description: str) -> tuple[str, str]:
+    """Pull an ABV percentage out of a free-text item description.
+
+    Descriptions are written as "4.2% ABV. American light lager. Smooth,
+    crisp..." — if the ABV leads the text, strip it off and return the rest
+    as the blurb. Otherwise, if "X% ABV" appears anywhere, extract it but
+    leave the full text as the blurb.
+    """
+    if not description:
+        return "", ""
+    text = description.strip()
+    m = _ABV_LEADING_RE.match(text)
+    if m:
+        return f"{m.group(1)}%", text[m.end():].strip()
+    m2 = _ABV_ANYWHERE_RE.search(text)
+    if m2:
+        return f"{m2.group(1)}%", text
+    return "", text
+
+
+def format_item_price(item: dict) -> str:
+    """Format a Toast menu item's price as a display string.
+
+    Simple single-price items use item['price'] directly. Items priced by
+    size/variant (price is null/0 on the item itself) carry their prices on
+    each modifier inside modifierGroups — in that case we show a min–max
+    range across every modifier price found.
+    """
+    price = item.get("price")
+    try:
+        if price:
+            return f"${float(price):.2f}"
+    except (TypeError, ValueError):
+        pass
+
+    found: list[float] = []
+    for mg in item.get("modifierGroups", []) or []:
+        for mod in mg.get("modifiers", []) or []:
+            p = mod.get("price")
+            try:
+                if p:
+                    found.append(float(p))
+            except (TypeError, ValueError):
+                continue
+
+    if found:
+        lo, hi = min(found), max(found)
+        if lo == hi:
+            return f"${lo:.2f}"
+        return f"${lo:.2f} – ${hi:.2f}"
+    return ""
+
+
+def extract_group_items(menu_payload: dict, group_name: str,
+                        menu_name: str | None = None) -> list[dict]:
+    """Pull every item out of a named menu group as plain display dicts.
+
+    Used for the Drafts / Cocktails / Specials sections of the card-grid
+    HTML page. `menu_name`, if given, restricts the search to groups inside
+    that parent menu (same convention as extract_drafts()).
+    """
+    target_group = group_name.strip().lower()
+    target_menu = menu_name.strip().lower() if menu_name else None
+    items_out: list[dict] = []
+    for menu in menu_payload.get("menus", []):
+        if target_menu and menu.get("name", "").strip().lower() != target_menu:
+            continue
+        for group in menu.get("menuGroups", []):
+            if group.get("name", "").strip().lower() != target_group:
+                continue
+            for item in group.get("menuItems", []):
+                name = (item.get("name") or "Untitled").strip()
+                abv, blurb = parse_abv_and_blurb(item.get("description", ""))
+                items_out.append({
+                    "name": name,
+                    "abv": abv,
+                    "blurb": blurb,
+                    "price": format_item_price(item),
+                })
+    return items_out
+
+
+CARD_ICONS = {
+    "drafts": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#F0E4C8" stroke-width="1.5">'
+        '<path d="M18 8h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"/>'
+        '<path d="M4 6h12v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z"/>'
+        '<path d="M4 6l1-3h10l1 3"/></svg>'
+    ),
+    "cocktails": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#F0E4C8" stroke-width="1.5">'
+        '<path d="M4 4h16l-8 9v6"/><path d="M8 19h8"/></svg>'
+    ),
+    "specials": (
+        '<svg viewBox="0 0 24 24" fill="none" stroke="#F0E4C8" stroke-width="1.5">'
+        '<path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg>'
+    ),
+}
+
+
+def _render_item_card(item: dict, icon_svg: str) -> str:
+    name = html_escape(item.get("name") or "Untitled")
+    abv = item.get("abv") or ""
+    blurb = (item.get("blurb") or "").strip()
+    price = item.get("price") or ""
+
+    abv_html = (
+        f'<span class="abv">{html_escape(abv)}</span>' if abv
+        else '<span class="abv tbd">ABV —</span>'
+    )
+    price_html = html_escape(price) if price else "—"
+    blurb_html = (
+        f'<div class="blurb">{html_escape(blurb)}</div>' if blurb else ""
+    )
+
+    return f"""
+  <div class="card">
+    <div class="photo">
+      {icon_svg}
+      <span class="photo-label">Photo coming soon</span>
+    </div>
+    <div class="body">
+      <div class="name">{name}</div>
+      {blurb_html}
+      <div class="meta">
+        {abv_html}
+        <span class="price">{price_html}</span>
+      </div>
+    </div>
+  </div>"""
+
+
+def _render_section_grid(items: list[dict], icon_key: str) -> str:
+    if not items:
+        return '<p class="section-note">Nothing in this section yet — check back soon.</p>'
+    icon_svg = CARD_ICONS.get(icon_key, "")
+    return "".join(_render_item_card(it, icon_svg) for it in items)
+
+
+MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{bar_name} — Draft Beer</title>
+<title>{bar_name} — On Tap &amp; On the Menu</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script>
-  // Reload the page every 60s with a cache-busting query string so the TV
-  // always shows the latest published version, never a stale cached copy.
+  // Reload every 60s with a cache-busting query string so a TV or kiosk
+  // browser always shows the latest published version.
   setTimeout(function() {{
     var u = new URL(window.location.href);
     u.searchParams.set('t', Date.now());
@@ -665,161 +820,237 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }}, 60000);
 </script>
 <style>
-  {font_face_rules}
-  :root {{
-    --header-bar: {c_header};
-    --orange: {c_orange};
-    --sage: {c_sage};
-    --bg: {c_bg};
-    --text: {c_text};
-    --light: {c_light};
-    --lime: {c_lime};
-    --tap-size: {tap_size}vh;
-    --name-size: {name_size}vh;
-    --sub-size: {sub_size}vh;
-    --abv-size: {abv_size}vh;
+  :root{{
+    --green:#13241B;
+    --green2:#1A4020;
+    --cream:#F0E4C8;
+    --bg:#F4F6F1;
+    --lime:#9BD236;
+    --text:#3A4A3F;
+    --card-bg:#FFFFFF;
+    --radius:14px;
   }}
-  * {{ box-sizing: border-box; }}
-  html, body {{
-    margin: 0; padding: 0;
-    background: var(--bg); color: var(--text);
-    font-family: '{body_font_name}', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    height: 100%; overflow: hidden;
+  *{{ box-sizing:border-box; }}
+  html,body{{
+    margin:0; padding:0;
+    background:var(--bg); color:var(--text);
+    font-family:'Sora','Helvetica Neue',Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
   }}
-  .header-bar {{
-    background: var(--header-bar);
-    height: 16vh;
-    padding: 0 3vw;
-    display: grid;
-    grid-template-columns: 14vw 1fr 22vw;
-    align-items: center;
-    color: var(--light);
-    overflow: visible;  /* let the badge hang past the bottom edge */
-    position: relative;
-    z-index: 2;
+
+  header.top{{
+    background:var(--green);
+    color:var(--cream);
+    padding:1.1rem 1.25rem 1rem;
+    text-align:center;
+    position:sticky; top:0; z-index:10;
   }}
-  .badge {{
-    /* Badge is taller than the orange bar so it "breaks out" past both edges,
-       like the designer's spec — top sparkle pokes above the bar into the white
-       margin, sage bottom hangs into the body below the bar. */
-    width: 22vh; height: 22vh;
-    {badge_bg_css}
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: var(--light);
-    line-height: 1;
-    /* Anchor the sage circle (which starts 13.2% into the PNG) to the top of
-       the bar. PNG sits with its top edge 3vh above the page, so the top sparkle
-       extends off the top of the viewport — matching the designer's spec where
-       the sparkle floats above the orange bar. */
-    transform: translateY(0%);
-    position: relative;
-    z-index: 3;
+  header.top .wordmark{{
+    font-weight:900;
+    font-size:clamp(1.4rem, 5vw, 2rem);
+    letter-spacing:-0.01em;
+    margin:0;
   }}
-  .badge .price {{ font-family: '{title_font_name}', Georgia, serif; font-size: 7vh; }}
-  .badge .label {{ font-family: '{badge_label_font_name}', cursive; font-size: 4vh; margin-top: 0.4vh; letter-spacing: 0.02em; }}
-  .header-bar .title {{
-    font-family: '{title_font_name}', Georgia, serif;
-    font-size: 11vh;
-    text-align: center;
-    line-height: 1;
+  header.top .tagline{{
+    margin:.15rem 0 0;
+    font-size:.8rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    opacity:.75;
   }}
-  .header-bar .right {{
-    text-align: center;
-    font-weight: 700;
-    font-size: 2.4vh;
-    line-height: 1.2;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+
+  nav.tabs{{
+    position:sticky; top:64px; z-index:9;
+    display:flex;
+    background:var(--green2);
+    padding:.4rem;
+    gap:.4rem;
   }}
-  .grid {{
-    /* Top padding clears the badge that hangs past the orange bar */
-    padding: 5vh 3vw 1vh 3vw;
-    height: 82vh;
-    display: grid;
-    grid-template-columns: {grid_cols};
-    column-gap: 3vw;
-    align-content: start;
-    overflow: hidden;
+  nav.tabs button{{
+    flex:1;
+    appearance:none; border:0; cursor:pointer;
+    background:transparent;
+    color:var(--cream);
+    font-family:inherit;
+    font-weight:700;
+    font-size:.85rem;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    padding:.65rem .5rem;
+    border-radius:10px;
+    transition:background .15s ease, color .15s ease;
+    opacity:.7;
   }}
-  ul.beers {{ list-style: none; margin: 0; padding: 0; }}
-  ul.beers li {{
-    display: grid;
-    /* Tap column scales with the tap font size so 2-digit Goudy numbers fit
-       without overlapping the beer name. Tighter gap and tap column gives the
-       beer name more horizontal room. */
-    grid-template-columns: calc(var(--tap-size) * 1.65) minmax(0, 1fr) auto;
-    column-gap: 0.5vw;
-    align-items: center;
-    padding: 0.35vh 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--lime) 45%, transparent);
-    min-width: 0;  /* allow ellipsis to work inside grid */
+  nav.tabs button.active{{
+    background:var(--lime);
+    color:var(--green);
+    opacity:1;
   }}
-  ul.beers li .beer {{
-    min-width: 0;       /* enable text-overflow inside grid cell */
-    overflow: hidden;
+
+  main{{ padding:1.25rem 1rem 3rem; max-width:1200px; margin:0 auto; }}
+  section.menu-section{{ display:none; }}
+  section.menu-section.active{{ display:block; }}
+
+  .section-heading{{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin:.25rem .1rem 1rem;
+    flex-wrap:wrap; gap:.35rem;
   }}
-  .tap {{
-    font-family: '{title_font_name}', Georgia, serif;
-    font-size: var(--tap-size);
-    line-height: 0.9;
-    text-align: left;
-    align-self: center;
-    color: var(--sage);
+  .section-heading h2{{
+    font-size:1.3rem; font-weight:800; color:var(--green);
+    margin:0; text-transform:uppercase; letter-spacing:.02em;
   }}
-  .tap.empty {{ opacity: 0.45; }}
-  /* Placeholder for empty taps — small, italic, faded so it reads as
-     "this tap is empty" instead of competing visually with real beer names. */
-  .beer .name.empty {{
-    text-transform: none;
-    font-weight: 400;
-    font-style: italic;
-    font-size: var(--sub-size);
-    color: var(--orange);
-    opacity: 0.45;
-    letter-spacing: 0;
+  .section-heading .count{{
+    font-size:.8rem; color:var(--text); opacity:.6;
   }}
-  .beer .name {{
-    color: var(--orange);
-    font-weight: 800;
-    font-size: var(--name-size);
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .section-note{{
+    font-size:.85rem;
+    color:var(--text);
+    opacity:.75;
+    margin:0 .1rem 1.1rem;
+    font-style:italic;
   }}
-  .beer .substyle {{
-    color: var(--text);
-    font-size: var(--sub-size);
-    margin-top: 0.2vh;
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+
+  .grid{{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:1rem;
   }}
-  .abv {{
-    color: var(--text);
-    font-size: var(--abv-size);
-    align-self: center;
-    text-align: right;
-    font-weight: 600;
+  @media (min-width:600px){{ .grid{{ grid-template-columns:repeat(2,1fr); }} }}
+  @media (min-width:900px){{ .grid{{ grid-template-columns:repeat(3,1fr); }} }}
+  @media (min-width:1200px){{ .grid{{ grid-template-columns:repeat(4,1fr); }} }}
+
+  .card{{
+    background:var(--card-bg);
+    border-radius:var(--radius);
+    overflow:hidden;
+    box-shadow:0 1px 3px rgba(19,36,27,.08), 0 1px 2px rgba(19,36,27,.06);
+    display:flex; flex-direction:column;
+    border:1px solid rgba(19,36,27,.06);
   }}
-  .empty {{
-    color: var(--text); font-style: italic; padding: 6vh; text-align: center; font-size: 3vh;
+  .card .photo{{
+    aspect-ratio:4/3;
+    background:linear-gradient(135deg, var(--green2), var(--green));
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }}
+  .card .photo svg{{ width:34%; height:34%; opacity:.35; }}
+  .card .photo .photo-label{{
+    position:absolute; bottom:.5rem; left:0; right:0;
+    text-align:center;
+    color:var(--cream);
+    font-size:.65rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    opacity:.55;
+  }}
+  .card .body{{
+    padding:.85rem .9rem 1rem;
+    display:flex; flex-direction:column; gap:.4rem; flex:1;
+  }}
+  .card .name{{
+    font-weight:800;
+    font-size:1rem;
+    color:var(--green);
+    line-height:1.2;
+    text-transform:uppercase;
+    letter-spacing:.01em;
+  }}
+  .card .blurb{{
+    font-size:.78rem;
+    color:var(--text);
+    opacity:.8;
+    line-height:1.35;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }}
+  .card .meta{{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:auto;
+    padding-top:.5rem;
+  }}
+  .card .abv{{
+    font-size:.72rem;
+    font-weight:700;
+    color:var(--green2);
+    background:rgba(26,64,32,.08);
+    padding:.2rem .5rem;
+    border-radius:999px;
+    letter-spacing:.02em;
+  }}
+  .card .abv.tbd{{ opacity:.5; font-style:italic; font-weight:600; }}
+  .card .price{{
+    font-weight:800;
+    font-size:.95rem;
+    color:var(--green);
+  }}
+
+  footer.foot{{
+    text-align:center;
+    font-size:.72rem;
+    color:var(--text);
+    opacity:.5;
+    padding:1.5rem 1rem 2rem;
+    font-style:italic;
   }}
 </style>
 </head>
 <body>
-<div class="header-bar">
-  <div class="badge">
-    <span class="price">{badge_price}</span>
-    <span class="label">{badge_label}</span>
-  </div>
-  <div class="title">{title}</div>
-  <div class="right">{right_html}</div>
-</div>
-{body}
+
+<header class="top">
+  <p class="wordmark">{bar_name}</p>
+  <p class="tagline">On Tap &amp; On the Menu</p>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-target="drafts">Drafts</button>
+  <button data-target="cocktails">Cocktails</button>
+  <button data-target="specials">Specials</button>
+</nav>
+
+<main>
+
+  <section id="drafts" class="menu-section active">
+    <div class="section-heading">
+      <h2>Draft Beer</h2>
+      <span class="count">{drafts_count} on tap</span>
+    </div>
+    <div class="grid">{drafts_html}</div>
+  </section>
+
+  <section id="cocktails" class="menu-section">
+    <div class="section-heading">
+      <h2>Cocktails</h2>
+      <span class="count">{cocktails_count} available</span>
+    </div>
+    <div class="grid">{cocktails_html}</div>
+  </section>
+
+  <section id="specials" class="menu-section">
+    <div class="section-heading">
+      <h2>Specials</h2>
+      <span class="count">{specials_count} available</span>
+    </div>
+    <div class="grid">{specials_html}</div>
+  </section>
+
+</main>
+
+<footer class="foot">Pulled live from Toast · {timestamp}</footer>
+
+<script>
+document.querySelectorAll('nav.tabs button').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('section.menu-section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.target).classList.add('active');
+  }});
+}});
+</script>
+
 </body>
 </html>
 """
@@ -827,6 +1058,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 def html_escape(s: str) -> str:
     return (s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+# The two helpers below are kept unchanged from the previous template — they're
+# still used by render_embed_html() further down (the iframe-friendly list used
+# on the Vercel/WordPress site), which is out of scope for this redesign.
 
 
 def _render_beer_li(b: "Beer", empty_slot_text: str = "") -> str:
@@ -854,16 +1090,6 @@ def _render_beer_li(b: "Beer", empty_slot_text: str = "") -> str:
         f'{abv_html}'
         '</li>'
     )
-
-
-def _column_html_with_empty(beers_subset: list["Beer"], empty_slot_text: str) -> str:
-    rows = "".join(_render_beer_li(b, empty_slot_text) for b in beers_subset)
-    return f'<div class="col"><ul class="beers">{rows}</ul></div>'
-
-
-def _column_html(beers_subset: list["Beer"]) -> str:
-    rows = "".join(_render_beer_li(b) for b in beers_subset)
-    return f'<div class="col"><ul class="beers">{rows}</ul></div>'
 
 
 def _build_font_face_rules(brand: dict, here: Path) -> str:
@@ -894,100 +1120,23 @@ def _build_font_face_rules(brand: dict, here: Path) -> str:
     return "\n  ".join(rules)
 
 
-def render_html(beers: Iterable["Beer"], out_path: Path, bar_name: str,
-                brand: dict | None = None) -> None:
-    beers = list(beers)
+def render_menu_html(drafts: list[dict], cocktails: list[dict], specials: list[dict],
+                     out_path: Path, bar_name: str) -> None:
+    """Render the tabbed card-grid HTML page (Drafts / Cocktails / Specials).
 
-    if brand is None:
-        brand = load_brand(Path(__file__).resolve().parent)
-
-    # Choose column count to match PDF
-    if len(beers) > 16:
-        n_cols = 3
-    elif len(beers) > 8:
-        n_cols = 2
-    else:
-        n_cols = 1
-    rows_per_col = max(1, (len(beers) + n_cols - 1) // n_cols)
-
-    # Auto-scale typography for legibility on a 1080p TV.
-    # Sizes tuned so long beer names (Coast to Coast, Keep on Truckin',
-    # East Coast Hazy IPA, etc.) fit at fullscreen 16:9 without truncation.
-    per_row = 82 / rows_per_col
-    tap_size  = round(min(5.4, per_row * 0.52), 1)
-    name_size = round(min(3.1, per_row * 0.30), 1)
-    sub_size  = round(min(2.2, per_row * 0.23), 1)
-    abv_size  = round(min(2.8, per_row * 0.30), 1)
-
-    H = brand["header"]
-    badge_lines = (H.get("left_badge") or "$\nPints").split("\n")
-    badge_price = badge_lines[0] if badge_lines else ""
-    badge_label = badge_lines[1] if len(badge_lines) > 1 else ""
-    right_html = "<br>".join(html_escape(ln) for ln in (H.get("right_text") or "").split("\n"))
-    title = html_escape(H.get("title") or "Draft Beer")
-
-    empty_slot_text = (H.get("empty_slot_text") or "").strip()
-    if not beers:
-        body = '<div class="empty">No drafts currently configured in Toast.</div>'
-        grid_cols = "1fr"
-    else:
-        per_col = rows_per_col
-        cols_html = "".join(
-            _column_html_with_empty(beers[i * per_col : (i + 1) * per_col], empty_slot_text)
-            for i in range(n_cols)
-        )
-        body = f'<div class="grid">{cols_html}</div>'
-        grid_cols = " ".join(["1fr"] * n_cols)
-
-    # Use registered TTF names if user supplied font files; otherwise serif/sans fallbacks.
-    F = brand["fonts"]
-    title_font_name = F.get("title_font_name") or "Times-Bold"
-    body_font_name = F.get("body_font_name") or "Helvetica"
-    badge_label_font_name = F.get("badge_label_name") or body_font_name
-
-    here = Path(__file__).resolve().parent
-    font_face_rules = _build_font_face_rules(brand, here)
-
-    # Badge background: either embedded image (base64) or a flat sage circle.
-    badge_bg_css = "background: var(--sage); border-radius: 50%;"
-    logo_cfg = brand.get("logo") or {}
-    logo_path_str = logo_cfg.get("path")
-    if logo_path_str:
-        logo_full = here / logo_path_str
-        if logo_full.exists():
-            import base64
-            ext = logo_full.suffix.lower().lstrip(".") or "png"
-            mime = "image/png" if ext == "png" else f"image/{ext}"
-            b64 = base64.b64encode(logo_full.read_bytes()).decode("ascii")
-            badge_bg_css = (
-                f"background: url('data:{mime};base64,{b64}') "
-                "no-repeat center/contain;"
-            )
-
-    out_path.write_text(HTML_TEMPLATE.format(
-        font_face_rules=font_face_rules,
-        badge_bg_css=badge_bg_css,
+    This is the "on tap" page served on GitHub Pages. Styling matches
+    Oakley Greens' own site (dark green header, cream text, lime accents,
+    Sora typeface) — no Fifty West layout, colors, or fonts.
+    """
+    out_path.write_text(MENU_PAGE_TEMPLATE.format(
         bar_name=html_escape(bar_name),
-        c_header=brand["colors"]["header_bar"],
-        c_orange=brand["colors"]["accent_orange"],
-        c_sage=brand["colors"]["accent_sage"],
-        c_bg=brand["colors"]["background"],
-        c_text=brand["colors"]["text_dark"],
-        c_light=brand["colors"]["text_light"],
-        c_lime=brand["colors"].get("accent_lime", brand["colors"]["accent_sage"]),
-        title_font_name=title_font_name,
-        body_font_name=body_font_name,
-        badge_label_font_name=badge_label_font_name,
-        title=title,
-        badge_price=html_escape(badge_price),
-        badge_label=html_escape(badge_label),
-        right_html=right_html,
-        body=body,
-        grid_cols=grid_cols,
-        tap_size=tap_size,
-        name_size=name_size,
-        sub_size=sub_size,
-        abv_size=abv_size,
+        drafts_count=len(drafts),
+        cocktails_count=len(cocktails),
+        specials_count=len(specials),
+        drafts_html=_render_section_grid(drafts, "drafts"),
+        cocktails_html=_render_section_grid(cocktails, "cocktails"),
+        specials_html=_render_section_grid(specials, "specials"),
+        timestamp=datetime.datetime.now().strftime("%b %-d, %Y · %-I:%M %p"),
     ))
 
 
@@ -1270,8 +1419,21 @@ def main() -> int:
         render_pdf(beers, pdf_path, bar_name, brand=brand)
         print(f"  Wrote {pdf_path}")
     if not args.pdf_only:
+        # Card-grid HTML page (Drafts / Cocktails / Specials tabs) — this is
+        # the page served on GitHub Pages, styled to match oakleygreens.com.
+        drafts_items = extract_group_items(payload, group_name, menu_name=menu_name)
+        cocktails_items = extract_group_items(
+            payload, cfg("COCKTAILS_GROUP_NAME"), menu_name=menu_name
+        )
+        specials_items = extract_group_items(
+            payload, cfg("SPECIALS_GROUP_NAME"), menu_name=menu_name
+        )
+        print(
+            f"  Card page: {len(drafts_items)} draft(s), "
+            f"{len(cocktails_items)} cocktail(s), {len(specials_items)} special(s)."
+        )
         html_path = out_dir / "draft_list.html"
-        render_html(beers, html_path, bar_name, brand=brand)
+        render_menu_html(drafts_items, cocktails_items, specials_items, html_path, bar_name)
         print(f"  Wrote {html_path}")
         # Website-facing outputs: JSON for the Vercel devs to fetch+render,
         # and a brand-styled embeddable list they can iframe instead.

@@ -842,53 +842,52 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
     -webkit-font-smoothing:antialiased;
   }}
 
-  header.top{{
-    background:var(--green);
-    color:var(--cream);
-    padding:1.1rem 1.25rem 1rem;
-    text-align:center;
-    position:sticky; top:0; z-index:10;
-  }}
-  header.top .wordmark{{
-    font-weight:900;
-    font-size:clamp(1.4rem, 5vw, 2rem);
-    letter-spacing:-0.01em;
-    margin:0;
-  }}
-  header.top .tagline{{
-    margin:.15rem 0 0;
-    font-size:.8rem;
-    letter-spacing:.06em;
-    text-transform:uppercase;
-    opacity:.75;
-  }}
-
+  /* Tab bar doubles as the page's top bar now that the "Oakley Greens / On Tap
+     & On the Menu" header block has been removed (this page is meant to be
+     embedded via iframe into the site's own drinks page, which already has
+     its own header — a second one here was redundant). */
   nav.tabs{{
-    position:sticky; top:64px; z-index:9;
+    position:sticky; top:0; z-index:10;
     display:flex;
     background:var(--green2);
-    padding:.4rem;
-    gap:.4rem;
+    padding:.6rem .6rem;
+    gap:.5rem;
+    border-bottom:3px solid var(--lime);
+    box-shadow:0 2px 10px rgba(19,36,27,.15);
   }}
   nav.tabs button{{
     flex:1;
-    appearance:none; border:0; cursor:pointer;
-    background:transparent;
+    appearance:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:.45rem;
+    background:rgba(240,228,200,.06);
+    border:1.5px solid rgba(240,228,200,.18);
     color:var(--cream);
     font-family:inherit;
-    font-weight:700;
-    font-size:.85rem;
-    letter-spacing:.03em;
+    font-weight:800;
+    font-size:.9rem;
+    letter-spacing:.04em;
     text-transform:uppercase;
-    padding:.65rem .5rem;
+    padding:.8rem .5rem;
     border-radius:10px;
-    transition:background .15s ease, color .15s ease;
-    opacity:.7;
+    transition:background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
+    opacity:.85;
+  }}
+  nav.tabs button:hover{{
+    background:rgba(240,228,200,.14);
+    border-color:rgba(240,228,200,.32);
+    opacity:1;
+  }}
+  nav.tabs button .tab-icon{{
+    width:16px; height:16px; flex-shrink:0;
+    stroke:currentColor;
   }}
   nav.tabs button.active{{
     background:var(--lime);
+    border-color:var(--lime);
     color:var(--green);
     opacity:1;
+    box-shadow:0 2px 8px rgba(155,210,54,.45);
+    transform:translateY(-1px);
   }}
 
   main{{ padding:1.25rem 1rem 3rem; max-width:1200px; margin:0 auto; }}
@@ -1003,15 +1002,19 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 
-<header class="top">
-  <p class="wordmark">{bar_name}</p>
-  <p class="tagline">On Tap &amp; On the Menu</p>
-</header>
-
-<nav class="tabs">
-  <button class="active" data-target="drafts">Drafts</button>
-  <button data-target="cocktails">Cocktails</button>
-  <button data-target="specials">Specials</button>
+<nav class="tabs" aria-label="Menu categories">
+  <button class="active" data-target="drafts" aria-selected="true">
+    <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1"/><path d="M4 6h12v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z"/><path d="M4 6l1-3h10l1 3"/></svg>
+    Drafts
+  </button>
+  <button data-target="cocktails" aria-selected="false">
+    <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16l-8 9v6"/><path d="M8 19h8"/></svg>
+    Cocktails
+  </button>
+  <button data-target="specials" aria-selected="false">
+    <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg>
+    Specials
+  </button>
 </nav>
 
 <main>
@@ -1047,9 +1050,13 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
 <script>
 document.querySelectorAll('nav.tabs button').forEach(btn => {{
   btn.addEventListener('click', () => {{
-    document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('nav.tabs button').forEach(b => {{
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    }});
     document.querySelectorAll('section.menu-section').forEach(s => s.classList.remove('active'));
     btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
     document.getElementById(btn.dataset.target).classList.add('active');
   }});
 }});

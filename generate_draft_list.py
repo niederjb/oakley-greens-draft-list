@@ -968,8 +968,15 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
   }}
   .card .photo svg{{ width:34%; height:34%; opacity:.35; }}
   .card .photo img{{
+    /* Toast item photos vary wildly in shape -- some are wide lifestyle
+       shots, many (especially default/stock bottle & can art) are tall
+       product cutouts. object-fit:cover would crop those tall images down
+       to a sliver of the actual product, which is what was happening here.
+       contain + padding shows the whole photo, letterboxed on the brand
+       gradient background so it still looks intentional either way. */
     width:100%; height:100%;
-    object-fit:cover;
+    object-fit:contain;
+    padding:.5rem;
     display:block;
   }}
   .card .photo .photo-label{{

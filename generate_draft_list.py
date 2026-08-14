@@ -741,8 +741,28 @@ def extract_group_items(menu_payload: dict, group_name: str,
                     "abv": abv,
                     "blurb": blurb,
                     "price": format_item_price(item),
+                    "image": _extract_item_image_url(item),
                 })
     return items_out
+
+
+def _extract_item_image_url(item: dict) -> str:
+    """Pull a photo URL for a Toast menu item, if one has been uploaded.
+
+    Toast's Menus V2 API exposes a single `image` field and/or an `images`
+    array on each MenuItem (https://doc.toasttab.com/openapi/menus/tag/
+    Data-definitions/schema/MenuItem/). Both are optional/nullable — most
+    items won't have one, which is expected and not an error.
+    """
+    image_url = (item.get("image") or "").strip()
+    if image_url:
+        return image_url
+    images = item.get("images") or []
+    for candidate in images:
+        candidate = (candidate or "").strip()
+        if candidate:
+            return candidate
+    return ""
 
 
 CARD_ICONS = {
@@ -768,6 +788,7 @@ def _render_item_card(item: dict, icon_svg: str) -> str:
     abv = item.get("abv") or ""
     blurb = (item.get("blurb") or "").strip()
     price = item.get("price") or ""
+    image_url = (item.get("image") or "").strip()
 
     abv_html = (
         f'<span class="abv">{html_escape(abv)}</span>' if abv
@@ -778,11 +799,19 @@ def _render_item_card(item: dict, icon_svg: str) -> str:
         f'<div class="blurb">{html_escape(blurb)}</div>' if blurb else ""
     )
 
+    # Use the real photo from Toast when the item has one uploaded; otherwise
+    # fall back to the category icon + "Photo coming soon" placeholder.
+    if image_url:
+        photo_html = (
+            f'<img src="{html_escape(image_url)}" alt="{name}" loading="lazy">'
+        )
+    else:
+        photo_html = f'{icon_svg}\n      <span class="photo-label">Photo coming soon</span>'
+
     return f"""
   <div class="card">
     <div class="photo">
-      {icon_svg}
-      <span class="photo-label">Photo coming soon</span>
+      {photo_html}
     </div>
     <div class="body">
       <div class="name">{name}</div>
@@ -938,6 +967,11 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
     position:relative;
   }}
   .card .photo svg{{ width:34%; height:34%; opacity:.35; }}
+  .card .photo img{{
+    width:100%; height:100%;
+    object-fit:cover;
+    display:block;
+  }}
   .card .photo .photo-label{{
     position:absolute; bottom:.5rem; left:0; right:0;
     text-align:center;

@@ -1058,8 +1058,30 @@ document.querySelectorAll('nav.tabs button').forEach(btn => {{
     btn.classList.add('active');
     btn.setAttribute('aria-selected', 'true');
     document.getElementById(btn.dataset.target).classList.add('active');
+    reportHeightToParent();
   }});
 }});
+
+// When this page is embedded via iframe (e.g. on the oakleygreens.com drinks
+// page), let the parent page auto-size the iframe to match this page's real
+// content height instead of relying on a hardcoded min-height guess. This is
+// what makes the embed look correct on phones, tablets, and desktop alike,
+// since the card grid above reflows to 1/2/3/4 columns at different widths
+// and therefore has a different total height at each breakpoint.
+function reportHeightToParent() {{
+  if (window.parent === window) return; // not embedded, nothing to do
+  var height = document.documentElement.scrollHeight;
+  window.parent.postMessage({{ source: 'oakley-drinks-menu', height: height }}, '*');
+}}
+
+window.addEventListener('load', reportHeightToParent);
+window.addEventListener('resize', function() {{
+  clearTimeout(window._ogResizeTimer);
+  window._ogResizeTimer = setTimeout(reportHeightToParent, 150);
+}});
+// Web fonts / icons can finish rendering a beat after 'load' and shift height.
+setTimeout(reportHeightToParent, 400);
+setTimeout(reportHeightToParent, 1200);
 </script>
 
 </body>

@@ -840,9 +840,6 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <script>
   // Reload every 60s with a cache-busting query string so a TV or kiosk
   // browser always shows the latest published version.
@@ -854,20 +851,22 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
 </script>
 <style>
   :root{{
-    --green:#13241B;
-    --green2:#1A4020;
-    --cream:#F0E4C8;
-    --bg:#F4F6F1;
-    --lime:#9BD236;
-    --text:#3A4A3F;
+    --green:#141414;
+    --green-60:#8A8A8A;
+    --cream:#FFFFFF;
+    --bg:#FFFFFF;
+    --gold:#A98238;
+    --gold-light:#C7AE7E;
+    --gold-dim:#6E5424;
+    --text:#141414;
     --card-bg:#FFFFFF;
-    --radius:14px;
+    --radius:10px;
   }}
   *{{ box-sizing:border-box; }}
   html,body{{
     margin:0; padding:0;
     background:var(--bg); color:var(--text);
-    font-family:'Sora','Helvetica Neue',Helvetica,Arial,sans-serif;
+    font-family:'Helvetica Neue', Arial, sans-serif;
     -webkit-font-smoothing:antialiased;
   }}
 
@@ -878,32 +877,32 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
   nav.tabs{{
     position:sticky; top:0; z-index:10;
     display:flex;
-    background:var(--green2);
+    background:var(--green);
     padding:.6rem .6rem;
     gap:.5rem;
-    border-bottom:3px solid var(--lime);
-    box-shadow:0 2px 10px rgba(19,36,27,.15);
+    border-bottom:3px solid var(--gold);
+    box-shadow:0 2px 10px rgba(20,20,20,.15);
   }}
   nav.tabs button{{
     flex:1;
     appearance:none; cursor:pointer;
     display:flex; align-items:center; justify-content:center; gap:.45rem;
-    background:rgba(240,228,200,.06);
-    border:1.5px solid rgba(240,228,200,.18);
-    color:var(--cream);
+    background:rgba(255,255,255,.06);
+    border:1.5px solid rgba(255,255,255,.18);
+    color:rgba(255,255,255,.85);
     font-family:inherit;
     font-weight:800;
     font-size:.9rem;
     letter-spacing:.04em;
     text-transform:uppercase;
     padding:.8rem .5rem;
-    border-radius:10px;
+    border-radius:6px;
     transition:background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease;
     opacity:.85;
   }}
   nav.tabs button:hover{{
-    background:rgba(240,228,200,.14);
-    border-color:rgba(240,228,200,.32);
+    background:rgba(255,255,255,.14);
+    border-color:rgba(255,255,255,.32);
     opacity:1;
   }}
   nav.tabs button .tab-icon{{
@@ -911,11 +910,11 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
     stroke:currentColor;
   }}
   nav.tabs button.active{{
-    background:var(--lime);
-    border-color:var(--lime);
+    background:var(--gold);
+    border-color:var(--gold);
     color:var(--green);
     opacity:1;
-    box-shadow:0 2px 8px rgba(155,210,54,.45);
+    box-shadow:0 2px 8px rgba(169,130,56,.45);
     transform:translateY(-1px);
   }}
 
@@ -929,16 +928,16 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
     flex-wrap:wrap; gap:.35rem;
   }}
   .section-heading h2{{
-    font-size:1.3rem; font-weight:800; color:var(--green);
+    font-family:'Arial Black','Helvetica Neue',Arial,sans-serif;
+    font-size:1.3rem; font-weight:800; color:var(--gold-dim);
     margin:0; text-transform:uppercase; letter-spacing:.02em;
   }}
   .section-heading .count{{
-    font-size:.8rem; color:var(--text); opacity:.6;
+    font-size:.8rem; color:var(--green-60);
   }}
   .section-note{{
     font-size:.85rem;
-    color:var(--text);
-    opacity:.75;
+    color:var(--green-60);
     margin:0 .1rem 1.1rem;
     font-style:italic;
   }}
@@ -956,24 +955,18 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
     background:var(--card-bg);
     border-radius:var(--radius);
     overflow:hidden;
-    box-shadow:0 1px 3px rgba(19,36,27,.08), 0 1px 2px rgba(19,36,27,.06);
+    box-shadow:0 2px 10px rgba(10,10,10,.04);
     display:flex; flex-direction:column;
-    border:1px solid rgba(19,36,27,.06);
+    border:1px solid rgba(10,10,10,.08);
   }}
   .card .photo{{
     aspect-ratio:4/3;
-    background:linear-gradient(135deg, var(--green2), var(--green));
+    background:linear-gradient(135deg, var(--green), #0A0A0A);
     display:flex; align-items:center; justify-content:center;
     position:relative;
   }}
   .card .photo svg{{ width:34%; height:34%; opacity:.35; }}
   .card .photo img{{
-    /* Toast item photos vary wildly in shape -- some are wide lifestyle
-       shots, many (especially default/stock bottle & can art) are tall
-       product cutouts. object-fit:cover would crop those tall images down
-       to a sliver of the actual product, which is what was happening here.
-       contain + padding shows the whole photo, letterboxed on the brand
-       gradient background so it still looks intentional either way. */
     width:100%; height:100%;
     object-fit:contain;
     padding:.5rem;
@@ -982,7 +975,7 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
   .card .photo .photo-label{{
     position:absolute; bottom:.5rem; left:0; right:0;
     text-align:center;
-    color:var(--cream);
+    color:rgba(255,255,255,.7);
     font-size:.65rem;
     letter-spacing:.08em;
     text-transform:uppercase;
@@ -993,6 +986,7 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
     display:flex; flex-direction:column; gap:.4rem; flex:1;
   }}
   .card .name{{
+    font-family:'Arial Black','Helvetica Neue',Arial,sans-serif;
     font-weight:800;
     font-size:1rem;
     color:var(--green);
@@ -1002,8 +996,7 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
   }}
   .card .blurb{{
     font-size:.78rem;
-    color:var(--text);
-    opacity:.8;
+    color:var(--green-60);
     line-height:1.35;
     display:-webkit-box;
     -webkit-line-clamp:2;
@@ -1018,8 +1011,8 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
   .card .abv{{
     font-size:.72rem;
     font-weight:700;
-    color:var(--green2);
-    background:rgba(26,64,32,.08);
+    color:var(--gold-dim);
+    background:rgba(169,130,56,.12);
     padding:.2rem .5rem;
     border-radius:999px;
     letter-spacing:.02em;
@@ -1028,14 +1021,13 @@ MENU_PAGE_TEMPLATE = """<!DOCTYPE html>
   .card .price{{
     font-weight:800;
     font-size:.95rem;
-    color:var(--green);
+    color:var(--gold-dim);
   }}
 
   footer.foot{{
     text-align:center;
     font-size:.72rem;
-    color:var(--text);
-    opacity:.5;
+    color:var(--green-60);
     padding:1.5rem 1rem 2rem;
     font-style:italic;
   }}
@@ -1198,9 +1190,10 @@ def render_menu_html(drafts: list[dict], cocktails: list[dict], specials: list[d
                      out_path: Path, bar_name: str) -> None:
     """Render the tabbed card-grid HTML page (Drafts / Cocktails / Specials).
 
-    This is the "on tap" page served on GitHub Pages. Styling matches
-    Oakley Greens' own site (dark green header, cream text, lime accents,
-    Sora typeface) — no Fifty West layout, colors, or fonts.
+    This is the "on tap" page served on GitHub Pages, embedded via iframe
+    on oakleygreens.com/drinks/. Styling matches the real oakleygreens.com
+    tokens (near-black #141414 header, gold #A98238 accents, Helvetica Neue)
+    — not the earlier Sora/lime-green placeholder scheme.
     """
     out_path.write_text(MENU_PAGE_TEMPLATE.format(
         bar_name=html_escape(bar_name),

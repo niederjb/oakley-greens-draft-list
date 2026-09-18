@@ -42,7 +42,8 @@ jobs:
           TOAST_CLIENT_ID: ${{ secrets.TOAST_CLIENT_ID }}
           TOAST_CLIENT_SECRET: ${{ secrets.TOAST_CLIENT_SECRET }}
           TOAST_RESTAURANT_GUID: ${{ secrets.OAKLEY_GREENS_GUID }}
-          DRAFT_GROUP_NAME: "Draft Beer"
+          DRAFT_GROUP_NAME: "Draft"
+          COCKTAILS_GROUP_NAME: "Clubhouse"
           BAR_NAME: "Oakley Greens"
         run: |
           mkdir -p site/oakley-greens

@@ -91,3 +91,9 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: gautamkrishnar/keepalive-workflow@v2
